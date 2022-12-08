@@ -1,9 +1,12 @@
 """Provide Filter class."""
+import logging
 import re
 from ast import literal_eval
 from typing import List, Optional, Pattern
 
 from homeassistant.components.calendar import CalendarEvent
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Filter:
@@ -13,16 +16,19 @@ class Filter:
     include rules.
     """
 
-    def __init__(self, exclude: str, include: str):
+    def __init__(self, exclude: str, include: str, location=""):
         """Construct Filter class.
 
         :param exclude: The exclude rules
         :type exclude: str
         :param include: The include rules
         :type include: str
+        :param location: The location rules
+        :type location: str
         """
         self._exclude = Filter.set_rules(exclude)
         self._include = Filter.set_rules(include)
+        self._location = Filter.set_rules(location)
 
     @staticmethod
     def set_rules(rules: str) -> List[Pattern]:
@@ -99,19 +105,31 @@ class Filter:
         """
         return self._is_match(summary, description, self._include)
 
-    def filter(self, summary: str, description: Optional[str]) -> bool:
+    def filter(
+        self, summary: str, description: Optional[str], location=""
+    ) -> bool:
         """Check if the event should be included or not.
 
         :param summary: The event summary to examine
         :type summary: str
         :param description: The event description summary to examine
         :type description: Optional[str]
+        :param location: The event locations to examine
+        :type location: Optional[str]
         :return: true if the event should be included, otherwise false
         :rtype: bool
         """
-        add_event = not self._is_excluded(summary, description)
+        add_event = True
+        if location and self._location:
+            add_event = self._is_match(location, "", self._location)
+        if add_event:
+            add_event = not self._is_excluded(summary, description)
         if not add_event:
             add_event = self._is_included(summary, description)
+        _LOGGER.debug(
+            'Filtering event (%s,%s,%s) -> %s',
+            summary, description, location, add_event
+        )
         return add_event
 
     def filter_event(self, event: CalendarEvent) -> bool:
@@ -122,4 +140,4 @@ class Filter:
         :return: true if the event should be included, otherwise false
         :rtype: bool
         """
-        return self.filter(event.summary, event.description)
+        return self.filter(event.summary, event.description, event.location)

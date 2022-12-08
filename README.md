@@ -68,6 +68,7 @@ Key | Type | Required | Description
 `download_interval` | `positive integer` | `False` | The time between downloading new calendar data, in minutes, default is 15
 `exclude` | `string` | `False` | Allows for filtering of events, see below
 `include` | `string` | `False` | Allows for filtering of events, see below
+`location` | `string` | `False` | Allows for filtering of events, see below
 `include_all_day` | `boolean` | `False` | Set to True if all day events should be included
 `parser` | `string` | `False` | 'rie' or 'ics', defaults to 'rie' if not present
 `username` | `string` | `False` | If the calendar requires authentication, this specifies the user name
@@ -94,6 +95,8 @@ As a general rule, I recommend sticking with the "rie" parser, which is the defa
 The new exclude and include options allow for filtering events in the calendar.  This is a string representation of an array of strings or regular expressions.  They are used as follows:
 
 The exclude filters are applied first, searching in the summary and description only.  If an event is excluded by the exclude filters, the include filters will be checked to determine if the event should be included anyway.
+
+If a location filter is given, only events matching one of the location expressions will be included. Location filtering goes on top of exclude/include filters.
 
 Regular expressions can be used, by surrounding the string with slashes (/).  You can also specify case insensitivity, multi-line match, and dotall matches by appending i, m, or s (respectively) after the ending slash.  If you don't understand what that means, you probably just want to stick with plain string matching.  For example, if you specify "['/^test/i']" as your exclude filter, then any event whose summary or description starts with "test", "Test", "TEST", etc. will be excluded.
 

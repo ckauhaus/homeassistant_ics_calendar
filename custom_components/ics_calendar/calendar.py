@@ -16,6 +16,7 @@ from homeassistant.components.calendar import (
 from homeassistant.const import (
     CONF_EXCLUDE,
     CONF_INCLUDE,
+    CONF_LOCATION,
     CONF_NAME,
     CONF_PASSWORD,
     CONF_URL,
@@ -75,6 +76,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
                             ): cv.string,
                             vol.Optional(CONF_EXCLUDE, default=""): cv.string,
                             vol.Optional(CONF_INCLUDE, default=""): cv.string,
+                            vol.Optional(CONF_LOCATION, default=""): cv.string,
                         }
                     )
                 ]
@@ -118,6 +120,7 @@ def setup_platform(
             CONF_USER_AGENT: calendar.get(CONF_USER_AGENT),
             CONF_EXCLUDE: calendar.get(CONF_EXCLUDE),
             CONF_INCLUDE: calendar.get(CONF_INCLUDE),
+            CONF_LOCATION: calendar.get(CONF_LOCATION),
         }
         device_id = f"{device_data[CONF_NAME]}"
         entity_id = generate_entity_id(ENTITY_ID_FORMAT, device_id, hass=hass)
@@ -223,7 +226,11 @@ class ICSCalendarData:
         self.include_all_day = device_data[CONF_INCLUDE_ALL_DAY]
         self.parser = ICalendarParser.get_instance(device_data[CONF_PARSER])
         self.parser.set_filter(
-            Filter(device_data[CONF_EXCLUDE], device_data[CONF_INCLUDE])
+            Filter(
+                device_data[CONF_EXCLUDE],
+                device_data[CONF_INCLUDE],
+                device_data[CONF_LOCATION],
+            )
         )
         self.offset = None
         self.event = None

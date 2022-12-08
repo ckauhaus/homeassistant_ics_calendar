@@ -125,3 +125,19 @@ ion""",
     def test_filter_with_description_none(self) -> None:
         filt = Filter("['exclude']", "['include']")
         assert filt.filter("summary", None) is True
+
+    def test_filter_location_hit(self, calendar_event: CalendarEvent) -> None:
+        filt = Filter("", "", "['location', 'nonmatching']")
+        assert filt.filter_event(calendar_event) is True
+
+    def test_filter_location_miss(self, calendar_event: CalendarEvent) -> None:
+        filt = Filter("", "", "['other', 'different']")
+        assert filt.filter_event(calendar_event) is False
+
+    def test_filter_location_ex(self, calendar_event: CalendarEvent) -> None:
+        filt = Filter("['other']", "", "['location']")
+        assert filt.filter_event(calendar_event) is True
+
+    def test_filter_location_noex(self, calendar_event: CalendarEvent) -> None:
+        filt = Filter("['summary']", "", "['location']")
+        assert filt.filter_event(calendar_event) is False

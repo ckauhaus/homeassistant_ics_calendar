@@ -103,7 +103,9 @@ class ParserRIE(ICalendarParser):
                 continue
 
             if not self._filter.filter(
-                event.get("SUMMARY"), event.get("DESCRIPTION")
+                event.get("SUMMARY"),
+                event.get("DESCRIPTION"),
+                event.get("LOCATION"),
             ):
                 continue
 
