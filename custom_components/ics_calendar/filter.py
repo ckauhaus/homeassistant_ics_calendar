@@ -120,8 +120,8 @@ class Filter:
         :rtype: bool
         """
         add_event = True
-        if location and self._location:
-            add_event = self._is_match(location, "", self._location)
+        if self._location:
+            add_event = self._is_match(location or "", "", self._location)
         if add_event:
             add_event = not self._is_excluded(summary, description)
         if not add_event:

@@ -10,7 +10,7 @@ def calendar_event() -> CalendarEvent:
     return CalendarEvent(
         summary="summary",
         start="start",
-        end="start",
+        end="end",
         location="location",
         description="description",
     )
@@ -141,3 +141,9 @@ ion""",
     def test_filter_location_noex(self, calendar_event: CalendarEvent) -> None:
         filt = Filter("['summary']", "", "['location']")
         assert filt.filter_event(calendar_event) is False
+
+    def test_filter_empty_location(self) -> None:
+        ev = CalendarEvent(summary="summary", start="start", end="end",
+                           description="description")
+        filt = Filter("", "", "['location']")
+        assert filt.filter_event(ev) is False
