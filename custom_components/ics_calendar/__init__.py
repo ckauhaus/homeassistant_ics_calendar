@@ -12,6 +12,7 @@ from homeassistant.const import (
     CONF_PREFIX,
     CONF_URL,
     CONF_USERNAME,
+    CONF_LOCATION,
     Platform,
 )
 from homeassistant.core import HomeAssistant
@@ -85,6 +86,9 @@ CONFIG_SCHEMA = vol.Schema(
                                     vol.Optional(
                                         CONF_CONNECTION_TIMEOUT, default=None
                                     ): cv.socket_timeout,
+                                    vol.Optional(
+                                        CONF_LOCATION, default=""
+                                    ): cv.string,
                                 }
                             )
                         ]
