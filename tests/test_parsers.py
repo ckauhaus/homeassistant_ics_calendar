@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import ics
 import pytest
 from dateutil import parser as dtparser
+from homeassistant.util import dt as hadt
 
 
 class TestParsers:
@@ -271,12 +272,12 @@ class TestParsers:
             "ics_parser",
         ],
     )
-    @pytest.mark.parametrize("file_name", ["issue45.ics"])
+    @pytest.mark.parametrize("file_name", ["issue43.ics"])
     def test_issue_forty_three_two_days(
         self, parser, calendar_data, expected_data
     ):
         """Test if still fixed, issue 43."""
-        now = dtparser.parse("2022-02-28T06:00:00-05:00")
+        now = dtparser.parse("2022-02-28T06:00:00-04:00")
         parser.set_content(calendar_data)
         current_event = parser.get_current_event(True, now, 2)
         event_list = [current_event]
@@ -291,11 +292,12 @@ class TestParsers:
         ],
     )
     @pytest.mark.parametrize("file_name", ["issue43.ics"])
+    @pytest.mark.parametrize("expected_name", ["issue43-14.ics"])
     def test_issue_forty_three_fourteen_days(
         self, parser, calendar_data, expected_data
     ):
         """Test if still fixed, issue 43."""
-        now = dtparser.parse("2022-03-01T06:00:00-05:00")
+        now = dtparser.parse("2022-03-01T06:00:00-04:00")
         parser.set_content(calendar_data)
         current_event = parser.get_current_event(True, now, 14)
         event_list = [current_event]
@@ -351,5 +353,115 @@ class TestParsers:
             dtparser.parse("2021-09-17T23:59:59"),
             True,
         )
+        pytest.helpers.assert_event_list_size(1, event_list)
+        pytest.helpers.compare_event_list(expected_data, event_list)
+
+    @pytest.mark.parametrize(
+        "which_parser",
+        [
+            "rie_parser",
+            "ics_parser",
+        ],
+    )
+    @pytest.mark.parametrize("file_name", ["positive_offset.ics"])
+    def test_positive_offset_hours(self, parser, calendar_data, expected_data):
+        """Test if offset_hours works."""
+        parser.set_content(calendar_data)
+        event_list = parser.get_event_list(
+            dtparser.parse("2021-09-16T00:00:00"),
+            dtparser.parse("2021-09-17T23:59:59"),
+            True,
+            2,
+        )
+
+        pytest.helpers.assert_event_list_size(1, event_list)
+        pytest.helpers.compare_event_list(expected_data, event_list)
+
+    @pytest.mark.parametrize(
+        "which_parser",
+        [
+            "rie_parser",
+            "ics_parser",
+        ],
+    )
+    @pytest.mark.parametrize("file_name", ["negative_offset.ics"])
+    def test_negative_offset_hours(self, parser, calendar_data, expected_data):
+        """Test if offset_hours works."""
+        parser.set_content(calendar_data)
+        event_list = parser.get_event_list(
+            dtparser.parse("2021-09-16T00:00:00"),
+            dtparser.parse("2021-09-17T23:59:59"),
+            True,
+            -4,
+        )
+
+        pytest.helpers.assert_event_list_size(1, event_list)
+        pytest.helpers.compare_event_list(expected_data, event_list)
+
+    @pytest.mark.parametrize(
+        "which_parser",
+        [
+            "rie_parser",
+            "ics_parser",
+        ],
+    )
+    @pytest.mark.parametrize("file_name", ["positive_offset_all_day.ics"])
+    def test_positive_offset_hours_all_day(
+        self, parser, calendar_data, expected_data
+    ):
+        """Test if offset_hours works."""
+        parser.set_content(calendar_data)
+        event_list = parser.get_event_list(
+            dtparser.parse("2021-09-16T00:00:00"),
+            dtparser.parse("2021-09-18T23:59:59"),
+            True,
+            2,
+        )
+
+        pytest.helpers.assert_event_list_size(1, event_list)
+        pytest.helpers.compare_event_list(expected_data, event_list)
+
+    @pytest.mark.parametrize(
+        "which_parser",
+        [
+            "rie_parser",
+            "ics_parser",
+        ],
+    )
+    @pytest.mark.parametrize("file_name", ["negative_offset_all_day.ics"])
+    def test_negative_offset_hours_all_day(
+        self, parser, calendar_data, expected_data
+    ):
+        """Test if offset_hours works."""
+        parser.set_content(calendar_data)
+        event_list = parser.get_event_list(
+            dtparser.parse("2021-09-15T00:00:00"),
+            dtparser.parse("2021-09-17T23:59:59"),
+            True,
+            -4,
+        )
+
+        pytest.helpers.assert_event_list_size(1, event_list)
+        pytest.helpers.compare_event_list(expected_data, event_list)
+
+    @pytest.mark.parametrize(
+        "which_parser",
+        [
+            "rie_parser",
+            "ics_parser",
+        ],
+    )
+    @pytest.mark.parametrize(
+        "set_tz", ["utc", "chicago", "baghdad"], indirect=True
+    )
+    @pytest.mark.parametrize("file_name", ["issue92.ics"])
+    def test_issue_ninety_two(
+        self, parser, set_tz, calendar_data, expected_data
+    ):
+        """Test if still fixed, issue 92."""
+        now = hadt.as_local(dtparser.parse("2022-12-30T06:00:00"))
+        parser.set_content(calendar_data)
+        current_event = parser.get_current_event(True, now, 5)
+        event_list = [current_event]
         pytest.helpers.assert_event_list_size(1, event_list)
         pytest.helpers.compare_event_list(expected_data, event_list)

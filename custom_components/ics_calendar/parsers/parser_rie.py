@@ -40,7 +40,11 @@ class ParserRIE(ICalendarParser):
         self._filter = filt
 
     def get_event_list(
-        self, start: datetime, end: datetime, include_all_day: bool
+        self,
+        start: datetime,
+        end: datetime,
+        include_all_day: bool,
+        offset_hours: int = 0,
     ) -> list[CalendarEvent]:
         """Get a list of events.
 
@@ -52,19 +56,24 @@ class ParserRIE(ICalendarParser):
         :type datetime
         :param include_all_day if true, all day events will be included.
         :type boolean
+        :param offset_hours the number of hours to offset the event
+        :type offset_hours int
         :returns a list of events, or an empty list
         :rtype list[CalendarEvent]
         """
-        event_list = []
+        event_list: list[CalendarEvent] = []
 
         if self._calendar is not None:
-            for event in rie.of(self._calendar).between(start, end):
-                start, end, all_day = self.is_all_day(event)
+            for event in rie.of(self._calendar).between(
+                start - timedelta(hours=offset_hours),
+                end - timedelta(hours=offset_hours),
+            ):
+                start, end, all_day = self.is_all_day(event, offset_hours)
 
                 if all_day and not include_all_day:
                     continue
 
-                calendar_event = CalendarEvent(
+                calendar_event: CalendarEvent = CalendarEvent(
                     summary=event.get("SUMMARY"),
                     start=start,
                     end=end,
@@ -77,7 +86,11 @@ class ParserRIE(ICalendarParser):
         return event_list
 
     def get_current_event(  # noqa: R701
-        self, include_all_day: bool, now: datetime, days: int
+        self,
+        include_all_day: bool,
+        now: datetime,
+        days: int,
+        offset_hours: int = 0,
     ) -> Optional[CalendarEvent]:
         """Get the current or next event.
 
@@ -89,15 +102,23 @@ class ParserRIE(ICalendarParser):
         :type datetime
         :param days the number of days to check for an upcoming event
         :type int
+        :param offset_hours the number of hours to offset the event
+        :type offset_hours int
         :returns a CalendarEvent or None
         """
         if self._calendar is None:
             return None
 
-        temp_event = temp_start = temp_end = temp_all_day = None
-        end = now + timedelta(days=days)
-        for event in rie.of(self._calendar).between(now, end):
-            start, end, all_day = self.is_all_day(event)
+        temp_event: CalendarEvent = None
+        temp_start: date | datetime = None
+        temp_end: date | datetime = None
+        temp_all_day: bool = None
+        end: datetime = now + timedelta(days=days)
+        for event in rie.of(self._calendar).between(
+            now - timedelta(hours=offset_hours),
+            end - timedelta(hours=offset_hours),
+        ):
+            start, end, all_day = self.is_all_day(event, offset_hours)
 
             if all_day and not include_all_day:
                 continue
@@ -141,30 +162,39 @@ class ParserRIE(ICalendarParser):
         :rtype datetime
         """
         # Must use type here, since a datetime is also a date!
-        if type(date_time) == date:  # pylint: disable=C0123
+        if isinstance(date_time, date) and not isinstance(date_time, datetime):
             date_time = datetime.combine(date_time, datetime.min.time())
         return date_time.astimezone()
 
-    def is_all_day(self, event):
+    def is_all_day(self, event, offset_hours: int):
         """Determine if the event is an all day event.
 
         Return all day status and start and end times for the event.
         :param event The event to examine
+        :param offset_hours the number of hours to offset the event
+        :type offset_hours int
         """
-        start = ParserRIE.get_date(event.get("DTSTART").dt)
-        end = ParserRIE.get_date(event.get("DTEND").dt)
+        start: datetime | date = ParserRIE.get_date(event.get("DTSTART").dt)
+        end: datetime | date = ParserRIE.get_date(event.get("DTEND").dt)
         all_day = False
         diff = event.get("DURATION")
         if diff is not None:
             diff = diff.dt
         else:
             diff = end - start
-        if diff in {self.oneday, self.oneday2} and all(
+        if (start == end or diff in {self.oneday, self.oneday2}) and all(
             x == 0 for x in [start.hour, start.minute, start.second]
         ):
             # if all_day, start and end must be date, not datetime!
             start = start.date()
             end = end.date()
             all_day = True
+        else:
+            start = start + timedelta(hours=offset_hours)
+            end = end + timedelta(hours=offset_hours)
+            if start.tzinfo is None:
+                start = start.astimezone()
+            if end.tzinfo is None:
+                end = end.astimezone()
 
         return start, end, all_day

@@ -1,8 +1,13 @@
 """Provide CalendarData class."""
+import time
 import zlib
 from datetime import timedelta
 from gzip import BadGzipFile, GzipFile
 from logging import Logger
+from random import uniform
+from socket import (  # type: ignore[attr-defined]  # private, not in typeshed
+    _GLOBAL_DEFAULT_TIMEOUT,
+)
 from threading import Lock
 from urllib.error import ContentTooShortError, HTTPError, URLError
 from urllib.request import (
@@ -17,7 +22,7 @@ from urllib.request import (
 from homeassistant.util.dt import now as hanow
 
 
-class CalendarData:
+class CalendarData:  # pylint: disable=R0902
     """CalendarData class.
 
     The CalendarData class is used to download and cache calendar data from a
@@ -28,7 +33,11 @@ class CalendarData:
     opener_lock = Lock()
 
     def __init__(
-        self, logger: Logger, name: str, url: str, min_update_time: timedelta
+        self,
+        logger: Logger,
+        name: str,
+        url: str,
+        min_update_time: timedelta,
     ):
         """Construct CalendarData object.
 
@@ -49,6 +58,11 @@ class CalendarData:
         self.logger = logger
         self.name = name
         self.url = url
+        self.connection_timeout = _GLOBAL_DEFAULT_TIMEOUT
+        # set a random sleep between 0.001 seconds & 2.000 seconds to
+        # reduce server load, particularly if lots of calendars all use the
+        # same server.
+        self._sleep_time = uniform(0.001, 2.000)
 
     def download_calendar(self) -> bool:
         """Download the calendar data.
@@ -70,6 +84,7 @@ class CalendarData:
             self.logger.debug(
                 "%s: Downloading calendar data from: %s", self.name, self.url
             )
+            self._wait_for_server()
             self._download_data()
             return self._calendar_data is not None
 
@@ -88,8 +103,9 @@ class CalendarData:
         user_name: str,
         password: str,
         user_agent: str,
+        accept_header: str,
     ):
-        """Set a user agent string and/or user name and password to use.
+        """Set a user agent, accept header, and/or user name and password.
 
         The user name and password will be set into an HTTPBasicAuthHandler an
         an HTTPDigestAuthHandler.  Both are attached to a new urlopener, so
@@ -103,8 +119,10 @@ class CalendarData:
         :type user_name: str
         :param password: The password
         :type password: str
-        :param user_agent: The User Agent string to use, or None for default
+        :param user_agent: The User Agent string to use or ""
         :type user_agent: str
+        :param accept_header: The accept header string to use or ""
+        :type accept_header: str
         """
         if user_name != "" and password != "":
             passman = HTTPPasswordMgrWithDefaultRealm()
@@ -115,10 +133,27 @@ class CalendarData:
                 digest_auth_handler, basic_auth_handler
             )
 
+        additional_headers = []
         if user_agent != "":
+            additional_headers.append(("User-agent", user_agent))
+        if accept_header != "":
+            additional_headers.append(("Accept", accept_header))
+        if len(additional_headers) > 0:
             if self._opener is None:
                 self._opener = build_opener()
-            self._opener.addheaders = [("User-agent", user_agent)]
+            self._opener.addheaders = additional_headers
+
+    def set_timeout(self, connection_timeout: float):
+        """Set the connection timeout.
+
+        :param connection_timeout: The timeout value in seconds.
+        :type connection_timeout: float
+        """
+        self.connection_timeout = connection_timeout
+
+    def _wait_for_server(self):
+        """Sleep for self._sleep_time to reduce server load."""
+        time.sleep(self._sleep_time)
 
     def _decode_data(self, conn):
         if (
@@ -146,7 +181,6 @@ class CalendarData:
         return None
 
     def _decode_stream(self, strm):
-        self.logger.warning("Trying to decode strm!")
         for encoding in "utf-8-sig", "utf-8", "utf-16":
             try:
                 return strm.decode(encoding)
@@ -160,7 +194,9 @@ class CalendarData:
             with CalendarData.opener_lock:
                 if self._opener is not None:
                     install_opener(self._opener)
-                with urlopen(self.url) as conn:
+                with urlopen(
+                    self._make_url(), timeout=self.connection_timeout
+                ) as conn:
                     self._calendar_data = self._decode_data(conn)
         except HTTPError as http_error:
             self.logger.error(
@@ -183,3 +219,9 @@ class CalendarData:
             self.logger.error(
                 "%s: Failed to open url!", self.name, exc_info=True
             )
+
+    def _make_url(self):
+        now = hanow()
+        return self.url.replace("{year}", f"{now.year:04}").replace(
+            "{month}", f"{now.month:02}"
+        )

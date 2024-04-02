@@ -16,27 +16,25 @@ jobs:
           sudo timedatectl set-timezone America/New_York
           timedatectl
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements.test.txt
-          #pip install git+https://github.com/jazzband/icalevents.git@c368ad8
-          #pip install git+https://github.com/ics-py/ics-py.git@a0738f1
 
       - name: Run pytest
         run: |
-          pytest --allow-unix-socket --cov=custom_components.ics_calendar --cov-branch --cov-report xml tests/
+          pytest tests/
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
         with:
           fail_ci_if_error: true
 

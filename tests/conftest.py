@@ -1,12 +1,13 @@
 """Fixtures and helpers for tests."""
 import json
 import logging
+import time
 from http import HTTPStatus
 
 import pytest
 from dateutil import parser as dtparser
 
-from custom_components.ics_calendar.const import PLATFORM
+from custom_components.ics_calendar.const import DOMAIN
 from custom_components.ics_calendar.icalendarparser import ICalendarParser
 
 
@@ -54,8 +55,7 @@ def get_api_events(hass_client):
 def allday_config():
     """Provide fixture for config that includes allday events."""
     return {
-        "calendar": {
-            "platform": PLATFORM,
+        DOMAIN: {
             "calendars": [
                 {
                     "name": "allday",
@@ -72,8 +72,7 @@ def allday_config():
 def noallday_config():
     """Provide fixture for config that does not include allday events."""
     return {
-        "calendar": {
-            "platform": PLATFORM,
+        DOMAIN: {
             "calendars": [
                 {
                     "name": "noallday",
@@ -87,11 +86,82 @@ def noallday_config():
 
 
 @pytest.fixture()
+def positive_offset_hours_config():
+    """Provide fixture for config that does not include allday events."""
+    return {
+        DOMAIN: {
+            "calendars": [
+                {
+                    "name": "positive_offset_hours",
+                    "url": "http://test.local/tests/allday.ics",
+                    "include_all_day": "false",
+                    "days": "1",
+                    "offset_hours": 5,
+                }
+            ],
+        }
+    }
+
+
+@pytest.fixture()
+def negative_offset_hours_config():
+    """Provide fixture for config that does not include allday events."""
+    return {
+        DOMAIN: {
+            "calendars": [
+                {
+                    "name": "negative_offset_hours",
+                    "url": "http://test.local/tests/allday.ics",
+                    "include_all_day": "false",
+                    "days": "1",
+                    "offset_hours": -5,
+                }
+            ],
+        }
+    }
+
+
+@pytest.fixture()
+def prefix_config():
+    """Provide fixture for config that does not include allday events."""
+    return {
+        DOMAIN: {
+            "calendars": [
+                {
+                    "name": "prefix",
+                    "url": "http://test.local/tests/allday.ics",
+                    "include_all_day": "false",
+                    "days": "1",
+                    "prefix": "PREFIX ",
+                }
+            ],
+        }
+    }
+
+
+@pytest.fixture()
+def acceptheader_config():
+    """Provide fixture for config that uses user name and password."""
+    return {
+        DOMAIN: {
+            "calendars": [
+                {
+                    "name": "acceptheader",
+                    "url": "http://test.local/tests/allday.ics",
+                    "include_all_day": "false",
+                    "days": "1",
+                    "accept_header": "text/calendar",
+                }
+            ],
+        }
+    }
+
+
+@pytest.fixture()
 def useragent_config():
     """Provide fixture for config that uses user name and password."""
     return {
-        "calendar": {
-            "platform": PLATFORM,
+        DOMAIN: {
             "calendars": [
                 {
                     "name": "useragent",
@@ -109,8 +179,7 @@ def useragent_config():
 def userpass_config():
     """Provide fixture for config that uses user name and password."""
     return {
-        "calendar": {
-            "platform": PLATFORM,
+        DOMAIN: {
             "calendars": [
                 {
                     "name": "userpass",
@@ -119,6 +188,24 @@ def userpass_config():
                     "days": "1",
                     "username": "username",
                     "password": "password",
+                }
+            ],
+        }
+    }
+
+
+@pytest.fixture()
+def timeout_config():
+    """Provide fixture for config that uses user name and password."""
+    return {
+        DOMAIN: {
+            "calendars": [
+                {
+                    "name": "timeout",
+                    "url": "http://test.local/tests/allday.ics",
+                    "include_all_day": "false",
+                    "days": "1",
+                    "connection_timeout": "1.5",
                 }
             ],
         }
@@ -181,14 +268,24 @@ def calendar_data(file_name):
 
 
 @pytest.fixture()
-def expected_data(file_name):
+def expected_name(file_name):
+    """Return {fileName}.
+
+    :param fileName: The base name of the file
+    :type fileName: str
+    """
+    return file_name
+
+
+@pytest.fixture()
+def expected_data(file_name, expected_name):
     """Return content of tests/{fileName}.expected.json.
 
     :param fileName: The base name of the file
     :type fileName: str
     """
     with open(
-        f"tests/{file_name}.expected.json", encoding="utf-8"
+        f"tests/{expected_name}.expected.json", encoding="utf-8"
     ) as file_handle:
         return json.loads(file_handle.read(), object_pairs_hook=datetime_hook)
 
@@ -197,6 +294,20 @@ def expected_data(file_name):
 def logger():
     """Provide autouse fixture for logger."""
     return logging.getLogger(__name__)
+
+
+@pytest.fixture(autouse=True)
+def sleepless(monkeypatch):
+    """Disable time.sleep() calls."""
+
+    def sleep(seconds):
+        pass
+
+    monkeypatch.setattr(
+        time,
+        "sleep",
+        sleep,
+    )
 
 
 @pytest.helpers.register

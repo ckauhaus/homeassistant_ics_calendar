@@ -1,3 +1,34 @@
+## 4.2.0 2024/01/15
+- Add timeout feature.  Thanks to @iamjackg!
+- Fixed #117
+
+## 4.1.0 2023/11/07
+- Add feature for #107
+
+## 4.0.1 2023/10/24
+- Attempt to give an error message for missing configuration
+
+## 4.0.0 2023/10/17
+- Change to be a component, since HA doesn't seem likely to allow UI configuration of the calendar component. :(
+### Breaking Change
+You must update your YAML configuration with this update.  This integration is no longer a platform for the calendar component.  Instead, it's a component on its own that provides calendars.  Please see [UpgradeTo4.0AndLater.md](https://github.com/franc6/ics_calendar/blob/releases/UpgradeTo4.0AndLater.md) for more information on upgrading.  Please read that carefully before upgrading to this version!
+
+## 3.2.0 2023/09/19
+- Added new option, accept_header to allow setting an Accept header for misconfigured servers.
+- Updated dependencies
+
+## 3.1.8 2023/08/23
+- Fixed #90
+- Fixed #92
+
+### Breaking Change
+- Updated to require HA 2023.6.  This release requires python 3.11, which is also required by HA 2023.6 and later, so that's the new minimum.
+
+## 3.1.7 2023/02/07
+- Fixed #76/#85
+- Fixed #77; you can now use {year} and {month} in your URLs to get the current 4 digit year and 2 digit month.
+- Fixed #78; you can now specify an offset in hours if your calendar entries have the wrong time zone.
+
 ## 3.1.6 2022/12/12
 - Handle UTF-8 BOM in calendar data.
 - Properly decode UTF-16 calendar data.

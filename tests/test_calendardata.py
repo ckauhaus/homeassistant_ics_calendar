@@ -48,6 +48,8 @@ BAD_DEFLATE_CALENDAR_DATA = (
 )
 
 TEST_URL = "http://127.0.0.1/test/allday.ics"
+TEST_TEMPLATE_URL = "http://127.0.0.1/test/{year}/{month}/allday.ics"
+TEST_TEMPLATE_URL_REPLACED = "http://127.0.0.1/test/2022/01/allday.ics"
 
 
 def set_calendar_data(calendar_data: CalendarData, data: str):
@@ -178,56 +180,143 @@ class MockHTTPHandler2(HTTPHandler):
         return mock_response(req, BINARY_CALENDAR_DATA_2)
 
 
+class MockHTTPHandlerInterpretTemplates(HTTPHandler):
+    """Mock HTTPHandler with a ContentTooShortError."""
+
+    def http_open(self, req):
+        """Check request URL no longer has templates."""
+        if req.get_full_url() == TEST_TEMPLATE_URL_REPLACED:
+            # Return good data only if URL matches!
+            return mock_response(req, BINARY_CALENDAR_DATA)
+        else:
+            # Indiciate what was wrong!
+            if req.get_full_url().find("{year}"):
+                raise BaseException("URL contains {year} template!")
+            if req.get_full_url().find("{month}"):
+                raise BaseException("URL contains {month} template!")
+
+
+class MockHTTPHandlerTimeoutValue(HTTPHandler):
+    """Mock HTTPHandler that reports timeout value."""
+
+    def http_open(self, req):
+        """Provide http_open to return the timeout value."""
+        timeout_str = f"{req.timeout}"
+        return mock_response(req, timeout_str.encode("utf-8"))
+
+
 class TestCalendarData:
     """Test the CalendarData class."""
 
     def test_set_headers_none(self, logger):
         """Test set_headers without user name, password, or user agent."""
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
-        calendar_data.set_headers("", "", "")
+        calendar_data.set_headers("", "", "", "")
+
+    def test_set_accept_header(self, logger):
+        """Test setting accept header by itself.
+
+        This doesn't do much, since set_headers has no failure conditions.  We
+        could test that it actually does what it's supposed to do, except that
+        means checking the implementation.
+        """
+        calendar_data = CalendarData(
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
+        )
+        calendar_data.set_headers("", "", "", "text/calendar")
 
     def test_set_user_agent(self, logger):
-        """Test setting user agent without user name and password.
+        """Test setting user agent by itself.
 
         This doesn't do much, since set_headers has no failure conditions.  We
         could test that it actually does what it's supposed to do, except that
         means checking the implementation.
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
-        calendar_data.set_headers("", "", "Mozilla/5.0")
+        calendar_data.set_headers("", "", "Mozilla/5.0", "")
 
     def test_set_username_and_password(self, logger):
-        """Test setting user name and password without user agent.
+        """Test setting user name and password by themselves.
 
         This doesn't do much, since set_headers has no failure conditions.  We
         could test that it actually does what it's supposed to do, except that
         means checking the implementation.
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
-        calendar_data.set_headers("username", "password", "")
+        calendar_data.set_headers("username", "password", "", "")
 
     def test_set_username_password_and_user_agent(self, logger):
-        """Test setting user name and password without user agent.
+        """Test setting user name and password with user agent.
 
         This doesn't do much, since set_headers has no failure conditions.  We
         could test that it actually does what it's supposed to do, except that
         means checking the implementation.
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
-        calendar_data.set_headers("username", "password", "Mozilla/5.0")
+        calendar_data.set_headers("username", "password", "Mozilla/5.0", "")
+
+    def test_set_username_password_and_accept_header(self, logger):
+        """Test setting user name and password with accept header.
+
+        This doesn't do much, since set_headers has no failure conditions.  We
+        could test that it actually does what it's supposed to do, except that
+        means checking the implementation.
+        """
+        calendar_data = CalendarData(
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
+        )
+        calendar_data.set_headers("username", "password", "", "text/calendar")
+
+    def test_set_all_headers(self, logger):
+        """Test setting all headers.
+
+        This doesn't do much, since set_headers has no failure conditions.  We
+        could test that it actually does what it's supposed to do, except that
+        means checking the implementation.
+        """
+        calendar_data = CalendarData(
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
+        )
+        calendar_data.set_headers(
+            "username", "password", "Mozilla/5.0", "text/calendar"
+        )
 
     def test_get(self, logger):
         """Test get method retrieves cached data."""
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         set_calendar_data(calendar_data, CALENDAR_DATA)
         assert calendar_data.get() == CALENDAR_DATA
@@ -238,9 +327,32 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPHandler)
+        install_opener(opener)
+        calendar_data.download_calendar()
+        assert calendar_data.get() == CALENDAR_DATA
+
+    @patch(
+        "custom_components.ics_calendar.calendardata.hanow",
+        return_value=dtparser.parse("2022-01-01T00:00:00"),
+    )
+    def test_download_calendar_interprets_templates(self, mock_hanow, logger):
+        """Test download_calendar sets cache from the mocked HTTPHandler.
+
+        This test relies on the success of test_get!
+        """
+        calendar_data = CalendarData(
+            logger,
+            CALENDAR_NAME,
+            TEST_TEMPLATE_URL,
+            timedelta(minutes=5),
+        )
+        opener = build_opener(MockHTTPHandlerInterpretTemplates)
         install_opener(opener)
         calendar_data.download_calendar()
         assert calendar_data.get() == CALENDAR_DATA
@@ -251,7 +363,10 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPHandler)
         calendar_data._opener = opener  # pylint: disable=W0212
@@ -264,7 +379,10 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPHandlerUTF8BOM)
         install_opener(opener)
@@ -277,7 +395,10 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPHandlerUTF16BOMBE)
         install_opener(opener)
@@ -290,7 +411,10 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPHandlerUTF16BOMLE)
         install_opener(opener)
@@ -303,7 +427,10 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPHandlerBadUTF)
         install_opener(opener)
@@ -316,7 +443,10 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPGzipHandler)
         install_opener(opener)
@@ -329,7 +459,10 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPGzipHandlerBadGzip)
         install_opener(opener)
@@ -342,7 +475,10 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPGzipHandlerBadDeflate)
         install_opener(opener)
@@ -355,7 +491,10 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPHandlerContentTooShortError)
         install_opener(opener)
@@ -368,7 +507,10 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPHandlerHTTPError)
         install_opener(opener)
@@ -381,7 +523,10 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPHandlerURLError)
         install_opener(opener)
@@ -394,7 +539,10 @@ class TestCalendarData:
         This test relies on the success of test_get!
         """
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPHandlerError)
         install_opener(opener)
@@ -409,10 +557,15 @@ class TestCalendarData:
         """Test that get causes downloads if enough time has passed."""
         mock_hanow.side_effect = [
             dtparser.parse("2022-01-01T00:00:00"),
+            dtparser.parse("2022-01-01T00:00:00"),
+            dtparser.parse("2022-01-01T00:05:05"),
             dtparser.parse("2022-01-01T00:05:05"),
         ]
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPHandler)
         install_opener(opener)
@@ -432,10 +585,15 @@ class TestCalendarData:
         """Test that get does not download if not enough time has passed."""
         mock_hanow.side_effect = [
             dtparser.parse("2022-01-01T00:00:00"),
+            dtparser.parse("2022-01-01T00:00:00"),
+            dtparser.parse("2022-01-01T00:04:59"),
             dtparser.parse("2022-01-01T00:04:59"),
         ]
         calendar_data = CalendarData(
-            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+            logger,
+            CALENDAR_NAME,
+            TEST_URL,
+            timedelta(minutes=5),
         )
         opener = build_opener(MockHTTPHandler)
         install_opener(opener)
@@ -446,3 +604,19 @@ class TestCalendarData:
         install_opener(opener)
         assert not calendar_data.download_calendar()
         assert calendar_data.get() == CALENDAR_DATA
+
+    # This isn't a good way to test this, since it relies on knowing how
+    # HTTPHandler passes the timeout, but since we're mocking that anyway,
+    # we might as well do it here, and use our knowledge. :(
+    def test_download_calendar_has_timeout(self, logger):
+        """Test that timeout is set properly."""
+        timeout = 1.5
+        timeout_str = f"{timeout}"
+        calendar_data = CalendarData(
+            logger, CALENDAR_NAME, TEST_URL, timedelta(minutes=5)
+        )
+        calendar_data.set_timeout(timeout)
+        opener = build_opener(MockHTTPHandlerTimeoutValue)
+        install_opener(opener)
+        assert calendar_data.download_calendar()
+        assert calendar_data.get() == timeout_str
