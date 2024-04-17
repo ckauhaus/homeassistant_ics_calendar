@@ -191,7 +191,7 @@ class CalendarData:  # pylint: disable=R0902
     def _download_data(self):
         """Download the calendar data."""
         try:
-            with CalendarData.opener_lock:
+            with CalendarData.opener_lock.acquire(timeout=60):
                 if self._opener is not None:
                     install_opener(self._opener)
                 with urlopen(
